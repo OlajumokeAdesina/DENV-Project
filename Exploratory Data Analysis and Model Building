@@ -1,1 +1,275 @@
+#Install the ChEMBL web service package to retrieve bioactivity data from the ChEMBL Database.
+! pip install chembl_webresource_client
+# Import libraries
+import pandas as pd
+import numpy as np
+from chembl_webresource_client.new_client import new_client
 
+#Search for dengue virus target protein data
+target = new_client.target
+target_query = target.search('dengue')
+targets = pd.DataFrame.from_dict(target_query)
+targets
+
+#Select and retrieve bioactivity data for Dengue virus target protein
+selected_target = targets.target_chembl_id[5]
+selected_target
+
+#retrieve only bioactivity data for *Dengue virus* (CHEMBL5980) that are reported as IC50 pChEMBL values
+activity = new_client.activity
+res = activity.filter(target_chembl_id=selected_target).filter(standard_type="IC50")
+
+df = pd.DataFrame.from_dict(res)
+df.head(10)
+
+#save the resulting bioactivity data to a CSV file bioactivity_data.csv
+df.to_csv('bioactivity_data.csv', index=False)
+! cp bioactivity_data.csv "/content/drive/My Drive/Colab_Notebooks/Dissertation_Data"
+! ls "/content/drive/My Drive/Colab_Notebooks/Dissertation_Data"
+! head bioactivity_data.csv
+
+#import libraries for visualization
+import seaborn as sns
+from seaborn import scatterplot
+sns.set(style='ticks')
+import matplotlib.pyplot as plt
+
+#load data
+df2 = pd.read_csv('/content/drive/MyDrive/Colab_Notebooks/Dissertation_Data/bioactivity_data.csv')
+df2
+
+#It is important to set the bioactivity threshold to categorize the molecules
+#optimally, the lower the IC50 value, the more potent the drug and the lower the dose of the drug needed to be administered
+#thus, we label the molecules in three categories: active- less than 1000µM, inactive- greater than 10000µM, neutral- in between active and inactive.
+bioactivity_threshold = []
+for i in df2.standard_value:
+  if float(i) >= 10000:
+    bioactivity_threshold.append("inactive")
+  elif float(i) <= 1000:
+    bioactivity_threshold.append("active")
+  else:
+    bioactivity_threshold.append("neutral")
+    
+    bioactivity_class = pd.Series(bioactivity_threshold, name='bioactivity_class')
+    
+#create a new dataframe by merging the bioactivity class column with the df2 table
+dfc = pd.concat([df2, bioactivity_class], axis=1)
+dfc
+
+#create a new DataFrame with specified columns
+new = ['molecule_chembl_id','canonical_smiles','standard_value', 'bioactivity_class']
+df3 = dfc[new]
+
+#Remove empty rows
+df3 = df3[df3.standard_value.notna()]
+df3 = df3[df3.canonical_smiles.notna()]
+
+#save the resulting bioactivity data to a CSV file bioactivity_data.csv
+df3.to_csv('bioactivity_data_preprocessed.csv', index=False)
+! cp bioactivity_data_preprocessed.csv "/content/drive/My Drive/Colab_Notebooks/Dissertation_Data"
+! ls "/content/drive/My Drive/Colab_Notebooks/Dissertation_Data"
+! head bioactivity_data.csv
+
+#Install conda and rdkit
+! wget https://repo.anaconda.com/miniconda/Miniconda3-py37_4.8.2-Linux-x86_64.sh
+! chmod +x Miniconda3-py37_4.8.2-Linux-x86_64.sh
+! bash ./Miniconda3-py37_4.8.2-Linux-x86_64.sh -b -f -p /usr/local
+! conda install -c rdkit rdkit -y
+import sys
+sys.path.append('/usr/local/lib/python3.7/site-packages/')
+
+
+#Load bioactivity data
+Bdf = pd.read_csv('/content/bioactivity_data_preprocessed.csv')
+Bdf
+
+#import libraries
+from rdkit import Chem
+from rdkit.Chem import Descriptors, Lipinski
+#Calculate Lipinski descriptors
+
+def lipinski(smiles, verbose=False):
+
+    moldata= []
+    for elem in smiles:
+        mol=Chem.MolFromSmiles(elem) 
+        moldata.append(mol)
+       
+    baseData= np.arange(1,1)
+    i=0  
+    for mol in moldata:        
+       
+        desc_MolWt = Descriptors.MolWt(mol)
+        desc_MolLogP = Descriptors.MolLogP(mol)
+        desc_NumHDonors = Lipinski.NumHDonors(mol)
+        desc_NumHAcceptors = Lipinski.NumHAcceptors(mol)
+           
+        row = np.array([desc_MolWt,
+                        desc_MolLogP,
+                        desc_NumHDonors,
+                        desc_NumHAcceptors])   
+    
+        if(i==0):
+            baseData=row
+        else:
+            baseData=np.vstack([baseData, row])
+        i=i+1      
+    
+    columnNames=["MW","LogP","NumHDonors","NumHAcceptors"]   
+    descriptors = pd.DataFrame(data=baseData,columns=columnNames)
+    
+    return descriptors
+    
+    df_lipinski = lipinski(Bdf.canonical_smiles)
+df_lipinski
+
+#Combine DataFrames using the .concat() function
+df_descriptors = pd.concat([Bdf,df_lipinski], axis=1)
+df_descriptors
+
+#Convert IC50 to pIC50
+def pIC50(input):
+    pIC50 = []
+
+    for i in input['standard_value_norm']:
+        molar = i*(10**-9) # Converts nM to M
+        pIC50.append(-np.log10(molar))
+
+    input['pIC50'] = pIC50
+    x = input.drop('standard_value_norm', 1)
+        
+    return x
+    
+    def norm_value(input):
+    norm = []
+
+    for i in input['standard_value']:
+        if i > 100000000:
+          i = 100000000
+        norm.append(i)
+
+    input['standard_value_norm'] = norm
+    x = input.drop('standard_value', 1)
+        
+    return x
+
+#Apply the norm_value() function to normalise the values in the standard_value column
+df_norm = norm_value(df_descriptors)
+df_norm
+
+#Add the normalised pIC50 column to the dataframe 
+df_pIC50 = pIC50(df_norm)
+
+#Removing the 'neutral' bioactivity class
+Bdf_pIC50= df_pIC50[df_pIC50['bioactivity_class'] != 'neutral']
+
+#Frequency plot of the 2 bioactivity classes
+plt.figure(figsize=(10, 8))
+
+sns.countplot(x='bioactivity_class', data=Bdf_pIC50, edgecolor='white', color='black')
+
+plt.xlabel('Bioactivity Class', fontsize=14)
+plt.ylabel('Frequency', fontsize=14)
+plt.title('Frequency of Inactive and Active Molecules', fontsize=16)
+
+
+
+#SupportVectorMachine
+from seaborn import load_dataset, pairplot
+from sklearn.svm import SVC
+from sklearn.model_selection import train_test_split
+from sklearn.metrics import accuracy_score
+
+
+
+#Create dataframe for model building
+dfp = Bdf_pIC50.drop(['canonical_smiles'], axis=1)
+dfp = dfp.drop(['ID'], axis=1)
+dfp = dfp.drop(['pIC50'], axis=1)
+dfp
+
+
+#create pairplots to visualize relationships between the pIC50 and the descriptors
+sns.pairplot(dfp, hue='bioactivity_class')
+plt.show()
+
+# Splitting the dataset into the Training set and Test set
+X = dfp.drop('bioactivity_class', axis=1)
+y = dfp.bioactivity_class
+
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2)
+
+# Building and training our model
+model = SVC(kernel='linear', random_state=0)
+model.fit(X_train, y_train)
+
+# Making predictions with our data
+predictions = model.predict(X_test)
+print(predictions[:100])
+
+print(model.score(X_train, y_train))
+print(model.score(X_test, y_test))
+
+y_predict = model.predict(X_test)
+
+from sklearn.metrics import classification_report, accuracy_score
+
+#confusion matrix
+from sklearn.metrics import confusion_matrix
+confusion_matrix = confusion_matrix(y_test, y_predict)
+print(confusion_matrix)
+
+print(classification_report(y_test, y_predict))
+
+print(accuracy_score(y_test, y_predict))
+
+#Binary Logistic Regression
+from sklearn.model_selection import train_test_split
+import statsmodels.api as sm
+from statsmodels.formula.api import logit
+
+#Expressed the bioactivity class column values in binary form
+dfp["bioactivity_class"] = dfp["bioactivity_class"].map({"inactive":0, "active":1})
+
+train_data, test_data = train_test_split(dfp, test_size=0.2)
+formula = ('bioactivity_class ~ LogP + NumHAcceptors + NumHDonors + MW')
+
+model1 = logit(formula = formula, data = train_data).fit()
+model1.summary()
+
+model1_odds = pd.DataFrame(np.exp(model1.params), columns= ['OR'])
+model1_odds['z-value']= model1.pvalues
+model1_odds[['2.5%', '97.5%']] = np.exp(model1.conf_int())
+model1_odds
+
+#Multicollinearity test
+dfp.corr()
+#heatmap
+sns.set(rc = {'figure.figsize':(15,8)})
+sns.heatmap(dfp.corr(), cmap='coolwarm', annot= True)
+
+
+#Linearity assumption test
+# Plotting multiple plots in the same figure
+fig, (axL, axR) = plt.subplots(2, figsize=(15, 15))
+plt.suptitle("Logistic Regression Residual Plots \n using Seaborn Lowess line (N = 823)")
+
+# Deviance Residuals
+sns.regplot(model1.fittedvalues, model1.resid_dev, ax= axL,
+            color="black", scatter_kws={"s": 5},
+            line_kws={"color":"r", "alpha":1, "lw":2}, lowess=True)
+
+axL.set_title("Deviance Residuals \n against Fitted Values")
+axL.set_xlabel("Linear Predictor Values")
+axL.set_ylabel("Deviance Residuals")
+
+# Studentized Pearson Residuals
+sns.regplot(model1.fittedvalues, model1.resid_pearson, ax= axR,
+            color="black", scatter_kws={"s": 5},
+            line_kws={"color":"y", "alpha":1, "lw":2}, lowess=True)
+
+axR.set_title("Studentized Pearson Residuals \n against Fitted Values")
+axR.set_xlabel("Linear Predictor Values")
+axR.set_ylabel("Studentized Pearson Residuals")
+
+plt.show()
