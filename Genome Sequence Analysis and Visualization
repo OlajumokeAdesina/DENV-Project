@@ -1,1 +1,132 @@
+!pip install Bio
+import Bio
+import pylab
+import urllib
+import pandas as pd
+!pip install nglview
+import nglview as ngl
+from Bio.Seq import Seq
+from collections import Counter
+from Bio import SeqIO, SearchIO
+from Bio.PDB import PDBParser,MMCIFParser
 
+#load the FASTA file
+DenV2_fasta = SeqIO.read('/content/drive/MyDrive/den2.fasta', 'fasta')
+
+#get sequence information
+for record in SeqIO.parse('/content/drive/MyDrive/den2.fasta', 'fasta'):
+    print(record)
+    record_2 = record
+    record_2
+    
+#save sequence file for analysis
+denv2_seq = record_2.seq
+denv2_seq
+
+#calculate molecular weight
+from Bio.SeqUtils import GC,molecular_weight
+molecular_weight(denv2_seq)
+len(denv2_seq)
+
+#DenV2 is an RNA virus so sequence transcription from DNA to RNA must be carried out
+#convert T to U using transcribe() function
+mRNA2 = denv2_seq.transcribe()
+mRNA2[:]
+
+#count the frequency of the nucleotides in the RNA
+RNA= mRNA2
+nucleotides={}
+for n in RNA:
+    if n in nucleotides:
+        nucleotides[n] += 1
+    else:
+        nucleotides[n] =  1
+print(nucleotides)
+
+#create a dataframe
+nts2 = pd.DataFrame(data=nucleotides, index=[0]).T.reset_index()
+nts2 = nts2.rename(columns={0: 'frequency', 'index' : 'nucleotides'})
+nts2 = nts2.sort_values(by=['frequency'], ascending=False)
+nts2.head() 
+
+import seaborn as sns
+import matplotlib.pyplot as plt
+plt.figure(figsize=(10, 8))
+sns.barplot(x="nucleotides", y="frequency", data=nts2, palette='inferno')
+plt.title('Frequency of Nucleotides')
+
+#translation from RNA to Protein
+if len(protein_seq) %3 ==0:
+     protein_seq = mRNA2.translate()
+elif (len(protein_seq)+1) %3 ==0:
+    protein_seqN = protein_seq + Seq('N')
+protein_seq[:10]
+len(protein_seq)
+
+#display total amino acids
+denv2_amino = Counter(protein_seq)
+denv2_amino.most_common(20)
+
+#barplot of all 20 amino acid occurrences
+del denv2_amino['*']
+
+pylab.bar(denv2_amino.keys(), denv2_amino.values(), edgecolor = 'white', color = "black", linewidth = 1.0)
+pylab.xlabel('Amino Acid', fontsize = 14)
+pylab.ylabel('Frequency', fontsize = 14)
+pylab.title('Amino Acid Frequency in DenV2', fontsize = 16)
+
+#split sequence
+protein_list = [str(i) for i in protein_seq.split('*')]
+protein_list[:10]
+
+#convert sequences to dataframe
+large_proteins = [x for x in protein_list if len(x)>10]
+df = pd.DataFrame({'protein_seq':large_proteins})
+
+#add a column with sequence lengths
+df['length'] = df['protein_seq'].apply(len)
+  
+#sort sequence data
+df.sort_values(by=['length'], ascending=False)[:10]
+
+#get the largest protein
+one_large_protein = df.nlargest(1, 'length')
+single_protein = one_large_protein.iloc[0, 0]
+single_protein
+
+#write to a file
+with open('single_protein.fasta', 'w') as file:
+    file.write('>large protein \n' + single_protein)
+    
+#read single_seq.fasta
+read = SeqIO.read('single_protein.fasta', 'fasta')
+read.seq
+
+#query this protein from NCBI
+import NCBIWWW from Bio.Blast
+result_handle = NCBIWWW.qblast('blastp', 'pdb', read.seq)
+blast_qresult = SearchIO.read(result_handle, 'blast-xml')
+print(blast_qresult)
+
+#get the sequence details for DenV2 protein
+seqid = blast_qresult[47]
+
+details = seqid[0]
+
+print(details)
+
+
+#use urllib to obtain PDB file of the protein
+urllib.request.urlretrieve('https://files.rcsb.org/download/3C6D.pdb', '/content/drive/MyDrive/3C6D.pdb')
+
+parser = PDBParser()
+structure = parser.get_structure('3C6D', '/content/drive/MyDrive/3C6D.pdb')
+structure
+
+!pip install pytraj
+import pytraj as pt
+traj = pt.load(ngl.datafiles.PDB)
+view = ngl.show_pytraj(traj, gui=True)
+view
+
+view.render_image()
