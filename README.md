@@ -3,12 +3,12 @@ This repository contains information on the code used in my first Dengue Virus D
 
 **The objective of this project was to demonstrate lead optimisation in computational drug discovery by incorporating Machine Learning. The models used in this project are the Support Vector Machine and Binary Logistic Regression models. The models were used to predict the bioactivity class (DV) of the molecules using the Lipinski Descriptors as IVs.**
 
-# Libraries Used in this Project
+### Libraries Used in this Project
 Pandas, Numpy, Matplotlib.pyplot, Chembl_webresource_client.new_client, Seaborn, Sklearn.svm, Statsmodels.formula.api, rdkit.Chem, Bash
 
 
 
-# Support Vector Machine Results
+### Support Vector Machine Results
 To validate the model, the accuracy score was obtained. The Support Vector Machine Model had an accuracy score of 98.5% which suggests the model was 98.5% accurate in predicting the probability of the bioactivity class of the molecule being active or inactive based on the Lipinski descriptors.
 
 <img width="357" alt="image" src="https://user-images.githubusercontent.com/111141451/220408262-c21ac916-37c2-48f1-a60e-8e1f106f2a59.png">
@@ -25,7 +25,7 @@ The precision score in the classification report shows that the positive predict
 <img width="360" alt="image" src="https://user-images.githubusercontent.com/111141451/220408048-e0fa41eb-625d-41a0-9ac2-f296d3462fcf.png">
 
 
-# Binary Logistic Regression Results
+### Binary Logistic Regression Results
 All the assumptions for this model were satisfied. There was no observed high multicollinearity between the variables, a linear relationship was found by plotting the residuals and the DV was converted to binary form.
 The p values for MW, LogP, NumHDonors are <.05 which means there is a statistically significant association between MW, LogP, NumHDonors and the bioactivity class of the molecule. Thus, the alternate hypotheses (H1, H3, H4) are accepted, and the null hypothesis (H0) is rejected.
 The p value for NumHAcceptors is >.05 which means there is no statistically significant association between NumHAcceptors and the bioactivity class of the molecule. Thus, the alternate hypothesis (H2) is rejected, and the null hypothesis (H0) is accepted. 
