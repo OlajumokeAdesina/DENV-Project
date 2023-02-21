@@ -5,15 +5,7 @@ This repository contains information on the code used in my first bioinformatics
 **The objective of this project was to demonstrate lead optimisation in computational drug discovery by incorporating Machine Learning. The models used in this project are the Support Vector Machine and Binary Logistic Regression models. The models were used to predict the bioactivity class (DV) of the molecules using the Lipinski Descriptors as IVs.**
 
 # Libraries Used in this Project
-Pandas: used for data analysis and manipulation.
-Numpy: scientific computing tool in Python.
-Matplotlib.pyplot: used for plotting figures.
-Chembl_webresource_client.new_client: used in accessing data from ChEMBL.
-Seaborn: used for creating visualizations.
-Sklearn.svm: for building the SVM model (Pedregosa et al. 2011).
-Statsmodels.formula.api: to import the Logit function for the Binary Logistic Regression model.
-rdkit.Chem: to import the Lipinski Descriptors.
-Bash: used in the project to save dataframes as CSV files for easy data manipulation.
+Pandas, Numpy, Matplotlib.pyplot, Chembl_webresource_client.new_client, Seaborn, Sklearn.svm, Statsmodels.formula.api, rdkit.Chem, Bash
 
 
 
